@@ -1,0 +1,95 @@
+/* ==========================================
+   STYLE KUSTOM APLIKASI POS (KASIR)
+   ========================================== */
+
+/* 1. Animasi Zoom Pelan Background Login (Ken Burns Effect) */
+@keyframes zoomBackground {
+    0% { 
+        transform: scale(1); 
+    }
+    50% { 
+        transform: scale(1.08); 
+    }
+    100% { 
+        transform: scale(1); 
+    }
+}
+
+.animate-bg-zoom {
+    animation: zoomBackground 20s ease-in-out infinite;
+}
+
+/* 2. Animasi Teks Muncul dari Bawah (Fade In Up) */
+@keyframes fadeInUp {
+    0% {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Penundaan Durasi Animasi (Delay) */
+.delay-1 { 
+    animation-delay: 0.2s; 
+    opacity: 0; 
+}
+.delay-2 { 
+    animation-delay: 0.4s; 
+    opacity: 0; 
+}
+.delay-3 { 
+    animation-delay: 0.6s; 
+    opacity: 0; 
+}
+
+/* 3. Aturan Khusus Cetak Struk / Nota (CSS Print) */
+@media print {
+    /* Sembunyikan seluruh elemen halaman web saat mencetak */
+    body * {
+        visibility: hidden !important;
+    }
+
+    /* Hanya tampilkan area Modal Struk dan seluruh isinya */
+    #modal-struk, #modal-struk * {
+        visibility: visible !important;
+    }
+
+    /* Posisikan Modal Struk tepat di pojok kiri atas halaman kertas */
+    #modal-struk {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        background: white !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Sembunyikan tombol-tombol (Aksi / Tutup) di modal saat diprint */
+    #modal-struk button {
+        display: none !important;
+    }
+}
+
+/* Tambahan UI pencarian stok dan pilihan harga kasir */
+#input-cari-stok,
+#form-grosir {
+    min-width: 0;
+}
+#list-keranjang select {
+    max-width: 100%;
+}
+@media (max-width: 640px) {
+    #section-stok table {
+        font-size: 12px;
+    }
+}

@@ -722,13 +722,33 @@ async function catatPergerakanStok(jenis, produk, jumlah, keterangan = '') {
 }
 
 function siapkanFormPergerakanStok() {
+    filterPilihanBarangPergerakan();
+}
+
+function filterPilihanBarangPergerakan() {
     const select = document.getElementById('gerak-produk');
+    const input = document.getElementById('cari-gerak-produk');
     if (!select) return;
+
     const pilihanLama = select.value;
-    select.innerHTML = '<option value="">Pilih barang</option>' + produkList
-        .slice().sort((a,b) => a.nama.localeCompare(b.nama, 'id'))
+    const kataKunci = (input?.value || '').trim().toLocaleLowerCase('id');
+    const daftar = produkList
+        .slice()
+        .sort((a, b) => a.nama.localeCompare(b.nama, 'id'))
+        .filter(p => p.nama.toLocaleLowerCase('id').includes(kataKunci));
+
+    select.innerHTML = '<option value="">Pilih barang</option>' + daftar
         .map(p => `<option value="${p.id}">${escapeHTMLRiwayat(p.nama)} (stok: ${p.stok})</option>`).join('');
-    if (produkList.some(p => String(p.id) === pilihanLama)) select.value = pilihanLama;
+
+    if (daftar.some(p => String(p.id) === pilihanLama)) {
+        select.value = pilihanLama;
+    } else if (pilihanLama) {
+        select.value = '';
+    }
+
+    if (daftar.length === 0) {
+        select.innerHTML = '<option value="">Barang tidak ditemukan</option>';
+    }
 }
 
 async function simpanPergerakanStok() {

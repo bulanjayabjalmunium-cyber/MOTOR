@@ -275,7 +275,13 @@
                                 <option value="retur_supplier">Retur ke Supplier</option>
                                 <option value="rusak">Barang Rusak</option>
                             </select></div>
-                            <div><label class="block text-xs font-semibold text-gray-600 mb-1">Pilih Barang</label><select id="gerak-produk" class="w-full border rounded px-3 py-2 text-sm"><option value="">Pilih barang</option></select></div>
+                            <div>
+                                <label for="cari-gerak-produk" class="block text-xs font-semibold text-gray-600 mb-1">Cari & Pilih Barang</label>
+                                <input type="search" id="cari-gerak-produk" oninput="filterPilihanBarangPergerakan()" class="w-full border rounded px-3 py-2 text-sm mb-2" placeholder="Ketik nama barang untuk mencari...">
+                                <select id="gerak-produk" class="w-full border rounded px-3 py-2 text-sm">
+                                    <option value="">Pilih barang</option>
+                                </select>
+                            </div>
                             <div><label class="block text-xs font-semibold text-gray-600 mb-1">Jumlah (pcs)</label><input type="number" min="1" step="1" id="gerak-jumlah" class="w-full border rounded px-3 py-2 text-sm" placeholder="Jumlah"></div>
                             <div><label class="block text-xs font-semibold text-gray-600 mb-1">Keterangan</label><input type="text" id="gerak-keterangan" class="w-full border rounded px-3 py-2 text-sm" placeholder="Contoh: retur / barang pecah"></div>
                         </div>

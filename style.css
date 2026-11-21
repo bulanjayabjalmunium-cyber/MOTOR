@@ -101,3 +101,7 @@
 /* Manajemen pergerakan stok */
 #section-pergerakan input, #section-pergerakan select { min-width: 0; }
 #section-pergerakan table { border-collapse: collapse; }
+
+/* Pencarian barang pada form pergerakan stok */
+#cari-gerak-produk,
+#gerak-produk { min-width: 0; width: 100%; }

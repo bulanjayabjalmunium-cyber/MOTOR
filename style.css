@@ -97,3 +97,7 @@
 /* Pengaturan administrator */
 #section-pengaturan input { min-width: 0; }
 #section-pengaturan button { cursor: pointer; }
+
+/* Manajemen pergerakan stok */
+#section-pergerakan input, #section-pergerakan select { min-width: 0; }
+#section-pergerakan table { border-collapse: collapse; }

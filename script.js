@@ -5,6 +5,12 @@ db.version(1).stores({
     transaksi: '++id, waktu, waktuIso, waktuFormatted, detail, totalOmset, totalLaba',
     restock: '++id, waktuFormatted, namaBarang, jumlahMasuk, stokAkhir'
 });
+db.version(2).stores({
+    produk: '++id, nama, modal, jual, stok',
+    transaksi: '++id, waktu, waktuIso, waktuFormatted, detail, totalOmset, totalLaba',
+    restock: '++id, waktuFormatted, namaBarang, jumlahMasuk, stokAkhir',
+    pergerakanStok: '++id, waktu, tanggal, jenis, idProduk, namaBarang'
+});
 
 // KAMUS MULTI-BAHASA
 let bahasaAktif = localStorage.getItem('pos_bahasa') || 'id';
@@ -111,6 +117,7 @@ const kamus = {
 let produkList = [];
 let riwayatTransaksi = [];
 let riwayatRestock = [];
+let riwayatPergerakanStok = [];
 let keranjang = [];
 
 function getLocalDateString(dateObj = new Date()) {
@@ -128,9 +135,12 @@ async function muatDataDariDB() {
     produkList.forEach(p => { if (p.grosir == null) p.grosir = p.jual; });
     riwayatTransaksi = await db.transaksi.reverse().toArray();
     riwayatRestock = await db.restock.reverse().toArray();
+    riwayatPergerakanStok = await db.pergerakanStok.reverse().toArray();
 
     perbaruiTampilanBahasa();
     resetFilterLaporanTanggal();
+    siapkanFormPergerakanStok();
+    muatDashboardPergerakanStok();
 }
 
 // STATUS LOGIN: bertahan saat halaman di-refresh pada tab yang sama.
@@ -313,7 +323,7 @@ function gantiMenu(menu) {
 
     document.getElementById(`section-${menu}`).classList.remove('hidden');
     const judul = document.getElementById('judul-halaman');
-    if (judul) judul.innerText = ({ dashboard: 'Dashboard & Laporan', stok: 'Stok & Input Barang', kasir: 'Kasir', riwayat: 'Riwayat Transaksi', pengaturan: 'Pengaturan Sistem' })[menu] || menu;
+    if (judul) judul.innerText = ({ dashboard: 'Dashboard & Laporan', stok: 'Stok & Input Barang', pergerakan: 'Manajemen Pergerakan Stok', kasir: 'Kasir', riwayat: 'Riwayat Transaksi', pengaturan: 'Pengaturan Sistem' })[menu] || menu;
     let btnAktif = document.getElementById(`nav-${menu}`);
     if(btnAktif) {
         btnAktif.classList.add('bg-blue-600', 'text-white');
@@ -321,6 +331,7 @@ function gantiMenu(menu) {
     }
     if (menu === 'dashboard') muatLaporanBerdasarkanTanggal();
     if (menu === 'riwayat') muatTabelRiwayat();
+    if (menu === 'pergerakan') muatDashboardPergerakanStok();
 }
 
 function resetFilterLaporanTanggal() {
@@ -533,6 +544,7 @@ async function tambahStokLangsung(id) {
     produk.stok += jumlah;
 
     await db.produk.update(id, { stok: produk.stok });
+    await catatPergerakanStok(jumlah > 0 ? 'masuk' : 'keluar_manual', produk, Math.abs(jumlah), 'Koreksi stok manual');
 
     let restockData = {
         waktuFormatted: new Date().toLocaleString('id-ID'),
@@ -593,16 +605,18 @@ async function resetSeluruhSistem() {
     const sandi = prompt('Masukkan password administrator untuk reset seluruh sistem:');
     if (sandi === null) return;
     if (!verifikasiPasswordAdmin(sandi)) { alert('Password salah. Reset dibatalkan.'); return; }
-    const konfirmasi = prompt('PERINGATAN: Semua produk, stok, restock, dan transaksi akan dihapus permanen. Ketik RESET untuk melanjutkan:');
+    const konfirmasi = prompt('PERINGATAN: Semua produk, stok, restock, transaksi, dan riwayat pergerakan stok akan dihapus permanen. Ketik RESET untuk melanjutkan:');
     if (konfirmasi !== 'RESET') { alert('Reset dibatalkan.'); return; }
-    await db.transaction('rw', db.produk, db.transaksi, db.restock, async () => {
+    await db.transaction('rw', db.produk, db.transaksi, db.restock, db.pergerakanStok, async () => {
         await db.produk.clear();
         await db.transaksi.clear();
         await db.restock.clear();
+        await db.pergerakanStok.clear();
     });
     produkList = [];
     riwayatTransaksi = [];
     riwayatRestock = [];
+    riwayatPergerakanStok = [];
     keranjang = [];
     muatTabelStok();
     muatGridKasir();
@@ -611,7 +625,7 @@ async function resetSeluruhSistem() {
     muatTabelRiwayatRestock();
     muatDashboard();
     muatLaporanBerdasarkanTanggal();
-    alert('Reset selesai. Semua data produk dan transaksi telah dikosongkan. ID dan password administrator tetap tersimpan.');
+    alert('Reset selesai. Semua data produk, transaksi, dan riwayat pergerakan stok telah dikosongkan. ID dan password administrator tetap tersimpan.');
 }
 
 async function tambahProdukBaru() {
@@ -644,6 +658,7 @@ async function tambahProdukBaru() {
         };
         await db.restock.add(restockData);
         riwayatRestock.unshift(restockData);
+        await catatPergerakanStok('masuk', produkAda, stok, 'Barang masuk melalui Input Barang / Restock');
 
         alert(`Barang "${produkAda.nama}" sudah ada. Stok berhasil ditambahkan sebanyak +${stok} pcs!`);
     } else {
@@ -658,6 +673,8 @@ async function tambahProdukBaru() {
         };
         await db.restock.add(restockData);
         riwayatRestock.unshift(restockData);
+        const produkBaru = produkList.find(p => p.id === newId);
+        if (stok > 0) await catatPergerakanStok('masuk', produkBaru, stok, 'Stok awal produk baru');
 
         alert(`Produk baru "${nama}" berhasil ditambahkan!`);
     }
@@ -672,6 +689,123 @@ async function tambahProdukBaru() {
     document.getElementById('form-grosir').value = '';
     document.getElementById('form-jual').value = '';
     document.getElementById('form-stok').value = '';
+}
+
+
+function labelJenisPergerakan(jenis) {
+    return ({
+        masuk: 'Barang Masuk',
+        keluar_manual: 'Barang Keluar (Manual)',
+        keluar_penjualan: 'Barang Keluar (Penjualan)',
+        retur_pelanggan: 'Retur dari Pelanggan',
+        retur_supplier: 'Retur ke Supplier',
+        rusak: 'Barang Rusak'
+    })[jenis] || jenis;
+}
+
+async function catatPergerakanStok(jenis, produk, jumlah, keterangan = '') {
+    if (!produk || !Number.isFinite(Number(jumlah)) || Number(jumlah) <= 0) return;
+    const sekarang = new Date();
+    const data = {
+        waktu: sekarang.toISOString(),
+        tanggal: getLocalDateString(sekarang),
+        waktuFormatted: sekarang.toLocaleString('id-ID'),
+        jenis,
+        idProduk: produk.id,
+        namaBarang: produk.nama,
+        jumlah: Number(jumlah),
+        keterangan: String(keterangan || '')
+    };
+    const id = await db.pergerakanStok.add(data);
+    data.id = id;
+    riwayatPergerakanStok.unshift(data);
+}
+
+function siapkanFormPergerakanStok() {
+    const select = document.getElementById('gerak-produk');
+    if (!select) return;
+    const pilihanLama = select.value;
+    select.innerHTML = '<option value="">Pilih barang</option>' + produkList
+        .slice().sort((a,b) => a.nama.localeCompare(b.nama, 'id'))
+        .map(p => `<option value="${p.id}">${escapeHTMLRiwayat(p.nama)} (stok: ${p.stok})</option>`).join('');
+    if (produkList.some(p => String(p.id) === pilihanLama)) select.value = pilihanLama;
+}
+
+async function simpanPergerakanStok() {
+    const jenis = document.getElementById('gerak-jenis')?.value;
+    const id = Number(document.getElementById('gerak-produk')?.value);
+    const jumlah = Number(document.getElementById('gerak-jumlah')?.value);
+    const keterangan = document.getElementById('gerak-keterangan')?.value.trim() || '';
+    const produk = produkList.find(p => p.id === id);
+
+    if (!produk) { alert('Pilih barang terlebih dahulu.'); return; }
+    if (!Number.isInteger(jumlah) || jumlah <= 0) { alert('Jumlah harus berupa bilangan bulat lebih dari 0.'); return; }
+
+    let perubahan = 0;
+    if (jenis === 'masuk' || jenis === 'retur_pelanggan') perubahan = jumlah;
+    else if (['keluar_manual', 'retur_supplier', 'rusak'].includes(jenis)) perubahan = -jumlah;
+    else { alert('Jenis pergerakan tidak valid.'); return; }
+
+    if (produk.stok + perubahan < 0) {
+        alert(`Stok tidak mencukupi. Stok tersedia: ${produk.stok} pcs.`);
+        return;
+    }
+
+    produk.stok += perubahan;
+    await db.produk.update(produk.id, { stok: produk.stok });
+    await catatPergerakanStok(jenis, produk, jumlah, keterangan);
+
+    // Barang masuk dan retur pelanggan yang diterima sebagai stok layak jual juga
+    // dipertahankan dalam riwayat restock lama agar laporan lama tetap kompatibel.
+    if (perubahan > 0) {
+        const restock = {
+            waktuFormatted: new Date().toLocaleString('id-ID'),
+            namaBarang: produk.nama,
+            jumlahMasuk: jumlah,
+            stokAkhir: produk.stok
+        };
+        await db.restock.add(restock);
+        riwayatRestock.unshift(restock);
+    }
+
+    document.getElementById('gerak-jumlah').value = '';
+    document.getElementById('gerak-keterangan').value = '';
+    muatTabelStok();
+    muatGridKasir();
+    muatTabelRiwayatRestock();
+    muatDashboard();
+    muatDashboardPergerakanStok();
+    siapkanFormPergerakanStok();
+    alert(`${labelJenisPergerakan(jenis)} berhasil dicatat. Stok ${produk.nama}: ${produk.stok} pcs.`);
+}
+
+function muatDashboardPergerakanStok() {
+    const tbody = document.getElementById('tabel-pergerakan-stok');
+    const hariIni = getLocalDateString(new Date());
+    const dataHariIni = riwayatPergerakanStok.filter(x => x.tanggal === hariIni);
+    const total = jenis => dataHariIni.filter(x => x.jenis === jenis).reduce((sum,x) => sum + Number(x.jumlah || 0), 0);
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    set('gerak-total-masuk', `${total('masuk') + total('retur_pelanggan')} pcs`);
+    set('gerak-total-keluar', `${total('keluar_manual') + total('keluar_penjualan') + total('retur_supplier')} pcs`);
+    set('gerak-total-retur', `${total('retur_pelanggan') + total('retur_supplier')} pcs`);
+    set('gerak-total-rusak', `${total('rusak')} pcs`);
+
+    if (!tbody) return;
+    if (!riwayatPergerakanStok.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Belum ada riwayat pergerakan stok.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = riwayatPergerakanStok.slice(0, 300).map(x => {
+        const warna = ['masuk','retur_pelanggan'].includes(x.jenis) ? 'text-emerald-700' : (x.jenis === 'rusak' ? 'text-red-700' : 'text-blue-700');
+        return `<tr class="border-b">
+            <td class="p-3 text-xs whitespace-nowrap">${escapeHTMLRiwayat(x.waktuFormatted || '-')}</td>
+            <td class="p-3 text-xs font-semibold">${escapeHTMLRiwayat(labelJenisPergerakan(x.jenis))}</td>
+            <td class="p-3 text-xs">${escapeHTMLRiwayat(x.namaBarang)}</td>
+            <td class="p-3 text-xs font-bold ${warna}">${Number(x.jumlah)} pcs</td>
+            <td class="p-3 text-xs">${escapeHTMLRiwayat(x.keterangan || '-')}</td>
+            <td class="p-3 text-xs">${Number(produkList.find(p => p.id === x.idProduk)?.stok ?? 0)} pcs saat ini</td>
+        </tr>`;
+    }).join('');
 }
 
 function escapeHTMLRiwayat(value) {
@@ -932,6 +1066,23 @@ async function prosesPembayaranKasir() {
     let newTrxId = await db.transaksi.add(trxData);
     trxData.id = newTrxId;
     riwayatTransaksi.unshift(trxData);
+
+    // Catat otomatis setiap barang keluar akibat penjualan kasir.
+    for (const item of trxData.items) {
+        const gerak = {
+            waktu: sekarang.toISOString(),
+            tanggal: waktuIsoFormat,
+            waktuFormatted: waktuStr,
+            jenis: 'keluar_penjualan',
+            idProduk: item.idProduk,
+            namaBarang: item.nama,
+            jumlah: item.qty,
+            keterangan: `Penjualan ${kanal === 'shopee' ? 'Shopee' : 'langsung'}`
+        };
+        const gerakId = await db.pergerakanStok.add(gerak);
+        gerak.id = gerakId;
+        riwayatPergerakanStok.unshift(gerak);
+    }
 
     muatDashboard();
     muatTabelStok();
